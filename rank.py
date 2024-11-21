@@ -1,7 +1,7 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-import plotly.graph_objects as go
+import plotly.graph_objects as go #type:ignore
 import bcrypt
 
 # Function to check if the username exists in the database

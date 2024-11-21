@@ -1,61 +1,54 @@
 import streamlit as st
 import sqlite3
-import bcrypt
+import pandas as pd
 
-# Database setup
-def create_database():
-    conn = sqlite3.connect('users.db')
+# Function to fetch column names from the table
+def get_column_names(table_name):
+    conn = sqlite3.connect('students.db')  # Connect to your SQLite database
     cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
-        )
-    ''')
-    conn.commit()
+
+    # Query to get the column names for the given table
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    columns = [info[1] for info in cursor.fetchall()]  # Extracting the column names from the query result
     conn.close()
 
-# Add a user to the database (use this to pre-create the admin user)
-def add_user(username, password):
-    conn = sqlite3.connect('users.db')
+    return columns
+
+# Function to fetch student data from SQLite
+def fetch_student_data(program):
+    conn = sqlite3.connect('students.db')  # Connect to your SQLite database
     cursor = conn.cursor()
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-    try:
-        cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed_password))
-        conn.commit()
-    except sqlite3.IntegrityError:
-        st.error("User already exists.")
+
+    # Depending on the selected program, fetch different tables
+    if program == 'Diploma in IT':
+        table_name = 'diploma_students'
+    elif program == 'BSc in IT':
+        table_name = 'bsc_students'
+
+    # Get the column names dynamically
+    columns = get_column_names(table_name)
+
+    # Fetch data from the respective table
+    cursor.execute(f"SELECT * FROM {table_name}")
+    data = cursor.fetchall()
     conn.close()
 
-# Authenticate user
-def authenticate_user(username, password):
-    conn = sqlite3.connect('users.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT password FROM users WHERE username = ?', (username,))
-    record = cursor.fetchone()
-    conn.close()
-    if record and bcrypt.checkpw(password.encode('utf-8'), record[0].encode('utf-8')):
-        return True
-    return False
+    # Create a DataFrame from the fetched data
+    df = pd.DataFrame(data, columns=columns)
+    return df
 
-# Initialize database
-create_database()
+# Streamlit page configuration
+st.set_page_config(page_title="Student Dashboard", layout="wide")
 
-# Add admin user (uncomment to initialize admin user; comment after first run)
-# add_user("admin", "securepassword123")
+# Sidebar for navigation
+program = st.sidebar.radio("Select Program", ["Diploma in IT", "BSc in IT"])
 
-# Streamlit UI
-st.title("Secure Login")
+# Fetch student data based on program selected
+df = fetch_student_data(program)
 
-username = st.text_input("Username")
-password = st.text_input("Password", type="password")
+# Display title and table on the corresponding page
+st.title(f"Student Data for {program}")
+st.write(f"Showing student details for the {program} program.")
 
-if st.button("Login"):
-    if authenticate_user(username, password):
-        st.success(f"Welcome, {username}!")
-        st.write("You are now logged in.")
-    else:
-        st.error("Invalid username or password.")
-
-st.info("To set up a new admin account, run the `add_user` function in your code with the desired credentials.")
+# Display student data table with dynamic column headers, use full container width
+st.dataframe(df, use_container_width=True)  # Automatically expand the table to the full width
